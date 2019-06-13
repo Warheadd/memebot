@@ -1,0 +1,78 @@
+#!/usr/bin/python3
+# 
+import praw
+import pdb
+import re
+import os
+import datetime
+import threading
+import sys, traceback
+import time
+import logging
+
+def runReddit():
+    try:
+        # Create the Reddit instance
+        reddit = praw.Reddit(threading.currentThread().getName())
+        logging.info("made reddit")
+        # and login
+        #reddit.login(REDDIT_USERNAME, REDDIT_PASS)
+
+        posts_replied_to = ""
+        bContinue = True
+        while(bContinue):
+            # Have we run this code before? If not, create an empty list
+            # Get the top 5 values from our subreddit
+            subreddit = reddit.subreddit('memeeconomy')
+            logging.info("made subreddit")
+            for submission in subreddit.new(limit=1):
+                logging.info("looking for new post")
+                logging.info(submission.title+" - "+ str(submission.author))
+
+                # If we haven't replied to this post before
+                if submission.id != posts_replied_to:
+                    # Do a case insensitive search
+                    if re.match("sol enterprises|empyrean|the nameless bank|never gonna give you up", str(submission.author_flair_text), re.IGNORECASE):
+                        # Reply to the post
+                        logging.info("matched")
+                        for top_level_comment in submission.comments:
+                            if re.search("INVESTMENTS GO HERE - ONLY DIRECT REPLIES TO ME WILL BE PROCESSED", top_level_comment.body, re.IGNORECASE):
+                                #print(top_level_comment.body)
+                                top_level_comment.reply("!invest 100%")
+                                logging.info("replied")
+                                posts_replied_to = submission.id
+                                bContinue = False
+                                RedditThread.event.set()
+            if bContinue:
+                time.sleep(30)
+
+    except:
+        logging.exception("error")
+
+class RedditThread (threading.Thread):
+   event = threading.Event()
+
+   def __init__(self, name):
+      threading.Thread.__init__(self)
+      self.name = name
+
+   def run(self):
+      if(self.name != 'bot1'):
+          logging.debug( "thread in waiting")
+          RedditThread.event.wait()
+      logging.info("Starting thread")
+      runReddit()
+      logging.info("Exiting thread!")
+      if(self.name == 'bot1'): # to allow other thread to be finished
+        RedditThread.event.set()
+
+LOG_FILENAME = 'reddit.log'
+logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG, 
+    format='%(asctime)s %(process)d - [%(threadName)s] - %(message)s', datefmt='%m-%d %H:%M')
+
+threads = [RedditThread("bot"+str(i)) for i in range(1,8)]
+for t in threads:
+   t.start()
+for t in threads:
+   t.join()
+logging.info("End")
